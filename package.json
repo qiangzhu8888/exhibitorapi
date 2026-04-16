@@ -1,0 +1,17 @@
+{
+  "name": "exhibitorapi-openapi",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/openapi.validate.test.js tests/launch.parse.test.js tests/dev-proxy-routing.test.js",
+    "validate:openapi": "node scripts/validate-openapi.js",
+    "dev": "node scripts/launch.mjs",
+    "proxy:dev": "node scripts/dev-proxy.mjs"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^10.1.1"
+  }
+}

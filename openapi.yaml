@@ -1,0 +1,507 @@
+openapi: 3.0.3
+info:
+  title: AiMeet OpenAPI — 出展商管理 API
+  description: |
+    第三方系统通过 OpenAPI 创建 AiMeet 出展商账号。TLS 1.2 以上の HTTPS を使用してください。
+
+    **認証の推奨**: `getAccessToken` は POST + JSON ボディ、`accessToken` は `Authorization: Bearer` ヘッダー。
+
+    **接続**: 「直接接続」はパス `/openapi/...` とサーバー（テスト/本番ホスト）を選びます。
+    「プロキシ」はパス `/env/{apiEnv}/openapi/...` とサーバー `http://127.0.0.1:8787` を選び、パス変数 apiEnv で test/prod を切り替えます（URL 結合ミスで 404 にならないよう分離しています）。
+  version: "2.0"
+
+servers:
+  - url: https://aibox-test.aimeet.jp
+    description: 直接接続・テスト（CORS 注意）。操作はパス「直接接続」の /openapi/... を使用。
+  - url: https://aibox.aimeet.jp
+    description: 直接接続・本番（CORS 注意）
+  - url: http://127.0.0.1:8787
+    description: |
+      ローカル CORS プロキシ（npm run dev）。
+      操作はパス「プロキシ経由」の /env/{apiEnv}/openapi/... を使用し、apiEnv でテスト/本番を切替。
+
+tags:
+  - name: auth
+    description: アクセストークン取得
+  - name: exhibition
+    description: 展会
+  - name: admin
+    description: 管理者・出展商アカウント
+
+paths:
+  /openapi/auth/getAccessToken:
+    servers:
+      - url: https://aibox-test.aimeet.jp
+      - url: https://aibox.aimeet.jp
+    get:
+      tags: [auth]
+      summary: 获取访问令牌（GET・後方互換）— 直接接続
+      description: |
+        直接 AiMeet に接続する場合。**プロキシ**利用時は「プロキシ経由」のパスを使ってください。
+        URL に `apiKey` / `secretKey` が載るため、ログに残る可能性があります。**POST を推奨**します。
+      operationId: getAccessTokenGet
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ApiKeyQuery"
+        - $ref: "#/components/parameters/SecretKeyQuery"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAccessTokenResponse"
+    post:
+      tags: [auth]
+      summary: 获取访问令牌（POST・推奨）— 直接接続
+      description: |
+        直接接続。**プロキシ**は別パス。`Content-Type: application/json` または `application/x-www-form-urlencoded`。
+      operationId: getAccessTokenPost
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetAccessTokenRequestBody"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/GetAccessTokenRequestBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAccessTokenResponse"
+
+  /openapi/exhibition/getExhibitionInfo:
+    servers:
+      - url: https://aibox-test.aimeet.jp
+      - url: https://aibox.aimeet.jp
+    get:
+      tags: [exhibition]
+      summary: 获取展会列表 — 直接接続
+      description: 创建出展商时选择 `exhibition_id` に使用。プロキシは「プロキシ経由」パス。
+      operationId: getExhibitionInfo
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: false
+          description: 按展会 ID 筛选
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/AccessTokenQuery"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetExhibitionInfoResponse"
+
+  /openapi/admin/getChildGroupList:
+    servers:
+      - url: https://aibox-test.aimeet.jp
+      - url: https://aibox.aimeet.jp
+    get:
+      tags: [admin]
+      summary: 获取子角色组列表 — 直接接続
+      description: 创建出展商时选择 `group_id` に使用。プロキシは「プロキシ経由」パス。
+      operationId: getChildGroupList
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AccessTokenQuery"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetChildGroupListResponse"
+
+  /openapi/admin/newExhibitor:
+    servers:
+      - url: https://aibox-test.aimeet.jp
+      - url: https://aibox.aimeet.jp
+    post:
+      tags: [admin]
+      summary: 创建出展商账号 — 直接接続
+      description: |
+        直接接続。プロキシは「プロキシ経由」パス。
+        可选同时注册发票/报价单相关信息（`exhibitorInfo`）。`sendLoginInfo=1` でログイン通知メール送信。
+      operationId: newExhibitor
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AccessTokenQuery"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewExhibitorRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewExhibitorResponseWrapper"
+
+  /env/{apiEnv}/openapi/auth/getAccessToken:
+    servers:
+      - url: http://127.0.0.1:8787
+    parameters:
+      - $ref: "#/components/parameters/ApiEnvPath"
+    get:
+      tags: [auth]
+      summary: 获取访问令牌（GET）— プロキシ経由
+      description: |
+        ローカルプロキシ経由。パス内 apiEnv でテスト/本番の上流を指定（サーバーは 127.0.0.1:8787 のみ）。
+      operationId: getAccessTokenGetProxy
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/ApiKeyQuery"
+        - $ref: "#/components/parameters/SecretKeyQuery"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAccessTokenResponse"
+    post:
+      tags: [auth]
+      summary: 获取访问令牌（POST）— プロキシ経由
+      description: ローカルプロキシ経由。POST で鍵を送ることを推奨。
+      operationId: getAccessTokenPostProxy
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetAccessTokenRequestBody"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/GetAccessTokenRequestBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetAccessTokenResponse"
+
+  /env/{apiEnv}/openapi/exhibition/getExhibitionInfo:
+    servers:
+      - url: http://127.0.0.1:8787
+    parameters:
+      - $ref: "#/components/parameters/ApiEnvPath"
+    get:
+      tags: [exhibition]
+      summary: 获取展会列表 — プロキシ経由
+      description: ローカルプロキシ経由。
+      operationId: getExhibitionInfoProxy
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: false
+          description: 按展会 ID 筛选
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/AccessTokenQuery"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetExhibitionInfoResponse"
+
+  /env/{apiEnv}/openapi/admin/getChildGroupList:
+    servers:
+      - url: http://127.0.0.1:8787
+    parameters:
+      - $ref: "#/components/parameters/ApiEnvPath"
+    get:
+      tags: [admin]
+      summary: 获取子角色组列表 — プロキシ経由
+      description: ローカルプロキシ経由。
+      operationId: getChildGroupListProxy
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AccessTokenQuery"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetChildGroupListResponse"
+
+  /env/{apiEnv}/openapi/admin/newExhibitor:
+    servers:
+      - url: http://127.0.0.1:8787
+    parameters:
+      - $ref: "#/components/parameters/ApiEnvPath"
+    post:
+      tags: [admin]
+      summary: 创建出展商账号 — プロキシ経由
+      description: ローカルプロキシ経由。
+      operationId: newExhibitorProxy
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AccessTokenQuery"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewExhibitorRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NewExhibitorResponseWrapper"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: UUID
+      description: |
+        `getAccessToken` で取得した `accessToken`。有効期間は 365 日。
+        後方互換として `accessToken` クエリまたは POST ボディでも渡せます（非推奨）。
+
+  parameters:
+    ApiEnvPath:
+      name: apiEnv
+      in: path
+      required: true
+      description: プロキシ経由時の上流（test=テスト、prod=本番）
+      schema:
+        type: string
+        enum: [test, prod]
+        default: test
+    ApiKeyQuery:
+      name: apiKey
+      in: query
+      required: true
+      schema:
+        type: string
+    SecretKeyQuery:
+      name: secretKey
+      in: query
+      required: true
+      schema:
+        type: string
+    AccessTokenQuery:
+      name: accessToken
+      in: query
+      required: false
+      description: 後方互換。推奨は Authorization Bearer。
+      schema:
+        type: string
+
+  schemas:
+    ApiStatus:
+      type: integer
+      description: |
+        业务状态码。0=成功、1001=参数错误、1002=认证失败、1003=过期、1004=HTTP 方法错误、1005=权限不足 等。
+      example: 0
+
+    CommonResponseFields:
+      type: object
+      required: [status, errmsg, timeStamp]
+      properties:
+        status:
+          $ref: "#/components/schemas/ApiStatus"
+        errmsg:
+          type: string
+        timeStamp:
+          type: integer
+          format: int64
+          description: UNIX タイムスタンプ（秒）
+
+    GetAccessTokenRequestBody:
+      type: object
+      required: [apiKey, secretKey]
+      properties:
+        apiKey:
+          type: string
+        secretKey:
+          type: string
+
+    AccessTokenItem:
+      type: object
+      required: [accessToken]
+      properties:
+        accessToken:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    GetAccessTokenResponse:
+      allOf:
+        - $ref: "#/components/schemas/CommonResponseFields"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/AccessTokenItem"
+
+    ExhibitionInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        exhibitionName:
+          type: string
+        exhibitionAdminID:
+          type: integer
+        startTime:
+          type: string
+          description: 日付文字列（例 YYYY-MM-DD）
+        endTime:
+          type: string
+        loginStartTime:
+          type: string
+        loginEndTime:
+          type: string
+        exhibitorNumber:
+          type: integer
+        isExternalAPI:
+          type: integer
+
+    GetExhibitionInfoResponse:
+      allOf:
+        - $ref: "#/components/schemas/CommonResponseFields"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/ExhibitionInfo"
+
+    ChildGroup:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: 出展商组A
+
+    GetChildGroupListResponse:
+      allOf:
+        - $ref: "#/components/schemas/CommonResponseFields"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChildGroup"
+
+    ExhibitorInfo:
+      type: object
+      description: 指定時は company_name, affiliation, incharge_name が必須
+      required: [company_name, affiliation, incharge_name]
+      properties:
+        company_name:
+          type: string
+        affiliation:
+          type: string
+        incharge_name:
+          type: string
+        address:
+          type: string
+        tel:
+          type: string
+        email:
+          type: string
+          description: 发票联系邮箱（与账号邮箱不同）
+        remark:
+          type: string
+        lang:
+          type: integer
+          description: "0=日语（默认）, 1=英语"
+          enum: [0, 1]
+        payment_status:
+          type: integer
+          description: "0=未支付（默认）, 1=已支付"
+          enum: [0, 1]
+        booth_no:
+          type: string
+
+    NewExhibitorRequest:
+      type: object
+      required: [username, nickname, email, exhibition_id, group_id]
+      properties:
+        accessToken:
+          type: string
+          description: "後方互換。推奨は Authorization Bearer ヘッダー。"
+        sendLoginInfo:
+          type: integer
+          description: "1=发送登录通知邮件, 0=不发送（默认 0）"
+          enum: [0, 1]
+          default: 0
+        username:
+          type: string
+          minLength: 8
+          maxLength: 32
+          description: 系统内唯一
+        nickname:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          maxLength: 16
+          description: 省略時は 8 位随机密码
+        exhibition_id:
+          type: integer
+        group_id:
+          type: integer
+        exhibitorInfo:
+          $ref: "#/components/schemas/ExhibitorInfo"
+
+    NewExhibitorSuccessData:
+      type: object
+      required: [admin_id, username]
+      properties:
+        admin_id:
+          type: integer
+        username:
+          type: string
+
+    NewExhibitorResponseWrapper:
+      allOf:
+        - $ref: "#/components/schemas/CommonResponseFields"
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - $ref: "#/components/schemas/NewExhibitorSuccessData"
+                - type: array
+                  description: 失敗時は空配列となる場合あり
+                  items: {}
